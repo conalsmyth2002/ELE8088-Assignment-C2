@@ -1,0 +1,73 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Feb 10 12:24:11 2025
+
+@author: Conal
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.linalg import null_space
+
+
+def solve_lqr_nullspace(A, B, Q, R, Pf, x0, x_bar, u_bar, N):
+    nx, nu = A.shape[0], B.shape[1]
+    
+    # Decision variable z = [x0, u0, x1, u1, ..., xN]
+    z_dim = (N + 1) * nx + N * nu
+    H = np.zeros((z_dim, z_dim))
+    c = np.zeros(z_dim)
+    
+    # Construct 'H' (Hessian) and 'c' (linear term) for cost function
+    for t in range(N):
+        idx_x = t * (nx + nu)
+        idx_u = idx_x + nx
+        
+        H[idx_x:idx_x+nx, idx_x:idx_x+nx] = Q
+        H[idx_u:idx_u+nu, idx_u:idx_u+nu] = R
+        
+        c[idx_x:idx_x+nx] = -Q @ x_bar
+        c[idx_u:idx_u+nu] = -R @ u_bar
+    
+    # Terminal cost
+    idx_xN = N * (nx + nu)
+    H[idx_xN:idx_xN+nx, idx_xN:idx_xN+nx] = Pf
+    c[idx_xN:idx_xN+nx] = -Pf @ x_bar
+
+    # Construct constraints Gz = g
+    G = np.zeros((N * nx, z_dim))
+    g = np.zeros(N * nx)
+    
+    for t in range(N):
+        idx_x = t * (nx + nu)
+        idx_u = idx_x + nx
+        idx_x_next = idx_x + nx + nu
+
+        G[t * nx:(t + 1) * nx, idx_x:idx_x + nx] = -A
+        G[t * nx:(t + 1) * nx, idx_u:idx_u + nu] = -B
+        G[t * nx:(t + 1) * nx, idx_x_next:idx_x_next + nx] = np.eye(nx)
+    
+    # Initial condition
+    g[:nx] = A @ x0
+    
+    # Solve using null-space method
+    N_G = null_space(G)
+    z_p = np.linalg.pinv(G) @ g
+    z_opt = z_p + N_G @ np.linalg.pinv(N_G.T @ H @ N_G) @ (-N_G.T @ (H @ z_p + c))
+
+    return z_opt
+
+# Example usage (placeholders for actual values)
+A = np.array([[1, 1], [0, 1]])
+B = np.array([[0], [1]])
+Q = np.eye(2)
+R = np.eye(1)
+Pf = np.eye(2)
+x0 = np.array([0, 0])
+x_bar = np.array([1, 1])
+u_bar = np.array([0])
+N = 10
+
+z_opt = solve_lqr_nullspace(A, B, Q, R, Pf, x0, x_bar, u_bar, N)
+print(z_opt)
+plt.plot(z_opt)
