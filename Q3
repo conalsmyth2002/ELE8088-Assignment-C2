@@ -1,0 +1,55 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Feb 10 18:03:11 2025
+
+@author: Conal
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+def solve_lqr_dp(A, B, Q, R, Pf, x0, x_bar, u_bar, N):
+    nx, nu = A.shape[0], B.shape[1]
+
+    # Initialize backward recursion
+    P = [None] * (N + 1)
+    p = [None] * (N + 1)
+    P[N] = Pf
+    p[N] = np.zeros(nx)
+
+    K = [None] * N
+    d = [None] * N
+
+    # Backward pass: Compute P_t and p_t
+    for t in reversed(range(N)):
+        R_tilde = R + B.T @ P[t + 1] @ B
+        K[t] = np.linalg.solve(R_tilde, B.T @ P[t + 1] @ A)
+        d[t] = np.linalg.solve(R_tilde, R @ u_bar - B.T @ p[t + 1])
+
+        P[t] = Q + A.T @ P[t + 1] @ A - A.T @ P[t + 1] @ B @ K[t]
+        p[t] = -Q @ x_bar + A.T @ p[t + 1] - A.T @ P[t + 1] @ B @ d[t]
+
+    # Forward pass: Compute optimal control sequence
+    x = x0
+    U_opt = np.zeros((N, nu))
+    
+    for t in range(N):
+        U_opt[t] = -K[t] @ x + d[t]
+        x = A @ x + B @ U_opt[t]
+
+    return U_opt
+
+# Example usage
+A = np.array([[1, 1], [0, 1]])
+B = np.array([[0], [1]])
+Q = np.eye(2)
+R = np.eye(1)
+Pf = np.eye(2)
+x0 = np.array([0, 0])
+x_bar = np.array([1, 1])
+u_bar = np.array([0])
+N = 10
+
+U_opt = solve_lqr_dp(A, B, Q, R, Pf, x0, x_bar, u_bar, N)
+print(U_opt)
+plt.plot(U_opt)
