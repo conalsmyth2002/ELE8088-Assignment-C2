@@ -1,0 +1,57 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Feb 10 15:39:10 2025
+
+@author: Conal
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+def solve_lqr_eliminate_states(A, B, Q, R, Pf, x0, x_bar, u_bar, N):
+    nx, nu = A.shape[0], B.shape[1]
+
+    # Construct S and T matrices
+    S = np.zeros((N * nx, nx))
+    T = np.zeros((N * nx, N * nu))
+
+    for t in range(N):
+        S[t * nx:(t + 1) * nx, :] = np.linalg.matrix_power(A, t + 1)
+        for k in range(t + 1):
+            T[t * nx:(t + 1) * nx, k * nu:(k + 1) * nu] = np.linalg.matrix_power(A, t - k) @ B
+
+    # Construct cost matrices H and f
+    Q_big = np.kron(np.eye(N), Q)  # Block diagonal Q
+    R_big = np.kron(np.eye(N), R)  # Block diagonal R
+
+    H = T.T @ Q_big @ T + R_big
+    f = T.T @ Q_big @ (S @ x0 - np.kron(np.ones(N), x_bar)) + R_big @ (-np.kron(np.ones(N), u_bar))
+
+    # Terminal cost terms
+    S_N = np.linalg.matrix_power(A, N)
+    T_N = np.zeros((nx, N * nu))
+    for k in range(N):
+        T_N[:, k * nu:(k + 1) * nu] = np.linalg.matrix_power(A, N - k - 1) @ B
+
+    H += T_N.T @ Pf @ T_N
+    f += T_N.T @ Pf @ (S_N @ x0 - x_bar)
+
+    # Solve for optimal U
+    U_opt = -np.linalg.solve(H, f)
+
+    return U_opt
+
+# Example usage
+A = np.array([[1, 1], [0, 1]])
+B = np.array([[0], [1]])
+Q = np.eye(2)
+R = np.eye(1)
+Pf = np.eye(2)
+x0 = np.array([0, 0])
+x_bar = np.array([1, 1])
+u_bar = np.array([0])
+N = 20
+
+U_opt = solve_lqr_eliminate_states(A, B, Q, R, Pf, x0, x_bar, u_bar, N)
+print(U_opt)
+plt.plot(U_opt)
